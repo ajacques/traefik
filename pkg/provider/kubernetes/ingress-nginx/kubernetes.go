@@ -106,7 +106,10 @@ type Provider struct {
 	ProxyBuffersNumber    int   `description:"Default number of buffers for reading a response." json:"proxyBuffersNumber,omitempty" toml:"proxyBuffersNumber,omitempty" yaml:"proxyBuffersNumber,omitempty" export:"true"`
 
 	// NonTLSEntryPoints contains the names of entrypoints that are configured without TLS.
-	NonTLSEntryPoints []string `json:"-" toml:"-" yaml:"-" label:"-" file:"-"`
+	NonTLSEntryPoints []string `description:"EntryPoint(s) (separated by comma) used for HTTP request."  json:"httpEntryPoint,omitempty" toml:"httpEntryPoint,omitempty" yaml:"httpEntryPoint,omitempty" export:"true"`
+
+	// TLSEntryPoints contains the names of entrypoints that are configured with TLS.
+	TLSEntryPoints []string `description:"EntryPoint(s) (separated by comma) used for HTTPS requests."  json:"httpsEntryPoint,omitempty" toml:"httpsEntryPoint,omitempty" yaml:"httpsEntryPoint,omitempty" export:"true"`
 
 	defaultBackendServiceNamespace string
 	defaultBackendServiceName      string
@@ -263,7 +266,8 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 
 		// Add the default backend service router to the configuration.
 		conf.HTTP.Routers[defaultBackendName] = &dynamic.Router{
-			Rule: "PathPrefix(`/`)",
+			EntryPoints: p.NonTLSEntryPoints,
+			Rule:        "PathPrefix(`/`)",
 			// "default" stands for the default rule syntax in Traefik v3, i.e. the v3 syntax.
 			RuleSyntax: "default",
 			Priority:   math.MinInt32,
@@ -271,7 +275,8 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 		}
 
 		conf.HTTP.Routers[defaultBackendTLSName] = &dynamic.Router{
-			Rule: "PathPrefix(`/`)",
+			EntryPoints: p.TLSEntryPoints,
+			Rule:        "PathPrefix(`/`)",
 			// "default" stands for the default rule syntax in Traefik v3, i.e. the v3 syntax.
 			RuleSyntax: "default",
 			Priority:   math.MinInt32,
@@ -367,7 +372,8 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 
 		if defaultBackendService != nil && len(ingress.Spec.Rules) == 0 {
 			rt := &dynamic.Router{
-				Rule: "PathPrefix(`/`)",
+				EntryPoints: p.NonTLSEntryPoints,
+				Rule:        "PathPrefix(`/`)",
 				// "default" stands for the default rule syntax in Traefik v3, i.e. the v3 syntax.
 				RuleSyntax: "default",
 				Priority:   math.MinInt32,
@@ -381,7 +387,8 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 			conf.HTTP.Routers[defaultBackendName] = rt
 
 			rtTLS := &dynamic.Router{
-				Rule: "PathPrefix(`/`)",
+				EntryPoints: p.TLSEntryPoints,
+				Rule:        "PathPrefix(`/`)",
 				// "default" stands for the default rule syntax in Traefik v3, i.e. the v3 syntax.
 				RuleSyntax: "default",
 				Priority:   math.MinInt32,
@@ -463,7 +470,8 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 				key := provider.Normalize(ingress.Namespace + "-" + ingress.Name + "-default-backend")
 
 				rt := &dynamic.Router{
-					Rule: buildHostRule(rule.Host),
+					EntryPoints: p.NonTLSEntryPoints,
+					Rule:        buildHostRule(rule.Host),
 					// "default" stands for the default rule syntax in Traefik v3, i.e. the v3 syntax.
 					RuleSyntax: "default",
 					Service:    key,
@@ -476,7 +484,8 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 				conf.HTTP.Routers[key] = rt
 
 				rtTLS := &dynamic.Router{
-					Rule: buildHostRule(rule.Host),
+					EntryPoints: p.TLSEntryPoints,
+					Rule:        buildHostRule(rule.Host),
 					// "default" stands for the default rule syntax in Traefik v3, i.e. the v3 syntax.
 					RuleSyntax: "default",
 					Service:    key,
@@ -537,12 +546,16 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 					RuleSyntax: "default",
 					Service:    serviceName,
 				}
+
 				if hasTLS {
 					rt.TLS = &dynamic.RouterTLSConfig{}
+					rt.EntryPoints = p.TLSEntryPoints
 
 					if clientAuthTLSOptionName != "" {
 						rt.TLS.Options = clientAuthTLSOptionName
 					}
+				} else {
+					rt.EntryPoints = p.NonTLSEntryPoints
 				}
 
 				routerKey := provider.Normalize(fmt.Sprintf("%s-%s-rule-%d-path-%d", ingress.Namespace, ingress.Name, ri, pi))
