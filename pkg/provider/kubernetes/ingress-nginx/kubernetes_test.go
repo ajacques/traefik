@@ -2886,7 +2886,7 @@ func TestLoadIngresses(t *testing.T) {
 				k8sClient:                      client,
 				defaultBackendServiceName:      test.defaultBackendServiceName,
 				defaultBackendServiceNamespace: test.defaultBackendServiceNamespace,
-				NonTLSEntryPointss:             []string{"web"},
+				NonTLSEntryPoints:              []string{"web"},
 			}
 			p.SetDefaults()
 
@@ -2932,11 +2932,11 @@ func TestHTTPEntryPoints(t *testing.T) {
 	for _, test := range testCases {
 		t.Run(test.desc, func(t *testing.T) {
 			p := &Provider{
-				NonTLSEntryPointss: test.nonTLSEntryPoints,
-				TLSEntryPoints:     test.tlsEntryPoints,
+				NonTLSEntryPoints: test.nonTLSEntryPoints,
+				TLSEntryPoints:    test.tlsEntryPoints,
 			}
 
-			assert.Equal(t, test.expectedHTTP, p.NonTLSEntryPointss, "NonTLSEntryPointss mismatch")
+			assert.Equal(t, test.expectedHTTP, p.NonTLSEntryPoints, "NonTLSEntryPoints mismatch")
 			assert.Equal(t, test.expectedHTTPS, p.TLSEntryPoints, "TLSEntryPoints mismatch")
 		})
 	}

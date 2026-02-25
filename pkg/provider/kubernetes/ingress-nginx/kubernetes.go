@@ -106,10 +106,10 @@ type Provider struct {
 	ProxyBuffersNumber    int   `description:"Default number of buffers for reading a response." json:"proxyBuffersNumber,omitempty" toml:"proxyBuffersNumber,omitempty" yaml:"proxyBuffersNumber,omitempty" export:"true"`
 
 	// NonTLSEntryPoints contains the names of entrypoints that are configured without TLS.
-	NonTLSEntryPoints []string `description:"EntryPoint(s) (separated by comma) used for HTTP request."  json:"httpEntryPoint,omitempty" toml:"httpEntryPoint,omitempty" yaml:"httpEntryPoint,omitempty" export:"true"`
+	NonTLSEntryPoints []string `description:"EntryPoint(s) (separated by comma) used for HTTP requests."  json:"nonTlsEntryPoints,omitempty" toml:"nonTlsEntryPoints,omitempty" yaml:"nonTlsEntryPoints,omitempty" export:"true"`
 
 	// TLSEntryPoints contains the names of entrypoints that are configured with TLS.
-	TLSEntryPoints []string `description:"EntryPoint(s) (separated by comma) used for HTTPS requests."  json:"httpsEntryPoint,omitempty" toml:"httpsEntryPoint,omitempty" yaml:"httpsEntryPoint,omitempty" export:"true"`
+	TLSEntryPoints []string `description:"EntryPoint(s) (separated by comma) used for HTTPS requests."  json:"tlsEntryPoints,omitempty" toml:"tlsEntryPoints,omitempty" yaml:"tlsEntryPoints,omitempty" export:"true"`
 
 	defaultBackendServiceNamespace string
 	defaultBackendServiceName      string
