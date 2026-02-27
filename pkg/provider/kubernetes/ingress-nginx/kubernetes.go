@@ -44,6 +44,8 @@ const (
 	defaultBackendTLSName = "default-backend-tls"
 
 	defaultProxyConnectTimeout = 60
+	defaultProxyReadTimeout    = 60
+	defaultProxySendTimeout    = 60
 	// https://nginx.org/en/docs/http/ngx_http_core_module.html#client_max_body_size
 	defaultProxyBodySize = int64(1024 * 1024) // 1MB
 	// https://nginx.org/en/docs/http/ngx_http_core_module.html#client_body_buffer_size
@@ -54,9 +56,19 @@ const (
 	defaultProxyBuffersNumber = 4
 	// https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_max_temp_file_size
 	defaultProxyMaxTempFileSize = int64(1024 * 1024 * 1024) // 1GB
+	// https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#proxy-next-upstream
+	defaultProxyNextUpstream = "error timeout"
+	// https://kubernetes.github.io/ingress-nginx/user-guide/nginx-configuration/configmap/#proxy-next-upstream-tries
+	// ingress-nginx uses 3 as default value.
+	defaultProxyNextUpstreamTries = 3
 )
 
 var nginxSizeRegexp = regexp.MustCompile(`^(?i)\s*([0-9]+)\s*([bkmg]?)\s*$`)
+
+var (
+	headerRegexp = regexp.MustCompile(`^[a-zA-Z\d\-_]+$`)
+	valueRegexp  = regexp.MustCompile(`^[a-zA-Z\d_ :;.,\\/"'?!(){}\[\]@<>=\-+*#$&\x60|~^%]+$`)
+)
 
 type backendAddress struct {
 	Address string
@@ -95,15 +107,23 @@ type Provider struct {
 	DefaultBackendService  string `description:"Service used to serve HTTP requests not matching any known server name (catch-all). Takes the form 'namespace/name'." json:"defaultBackendService,omitempty" toml:"defaultBackendService,omitempty" yaml:"defaultBackendService,omitempty" export:"true"`
 	DisableSvcExternalName bool   `description:"Disable support for Services of type ExternalName." json:"disableSvcExternalName,omitempty" toml:"disableSvcExternalName,omitempty" yaml:"disableSvcExternalName,omitempty" export:"true"`
 
-	ProxyConnectTimeout int `description:"Amount of time to wait until a connection to a server can be established. Timeout value is unitless and in seconds." json:"proxyConnectTimeout,omitempty" toml:"proxyConnectTimeout,omitempty" yaml:"proxyConnectTimeout,omitempty" export:"true"`
-
 	// Configuration options available within the NGINX Ingress Controller ConfigMap.
-	ProxyRequestBuffering bool  `description:"Defines whether to enable request buffering." json:"proxyRequestBuffering,omitempty" toml:"proxyRequestBuffering,omitempty" yaml:"proxyRequestBuffering,omitempty" export:"true"`
-	ClientBodyBufferSize  int64 `description:"Default buffer size for reading client request body." json:"clientBodyBufferSize,omitempty" toml:"clientBodyBufferSize,omitempty" yaml:"clientBodyBufferSize,omitempty" export:"true"`
-	ProxyBodySize         int64 `description:"Default maximum size of a client request body in bytes." json:"proxyBodySize,omitempty" toml:"proxyBodySize,omitempty" yaml:"proxyBodySize,omitempty" export:"true"`
-	ProxyBuffering        bool  `description:"Defines whether to enable response buffering." json:"proxyBuffering,omitempty" toml:"proxyBuffering,omitempty" yaml:"proxyBuffering,omitempty" export:"true"`
-	ProxyBufferSize       int64 `description:"Default buffer size for reading the response body." json:"proxyBufferSize,omitempty" toml:"proxyBufferSize,omitempty" yaml:"proxyBufferSize,omitempty" export:"true"`
-	ProxyBuffersNumber    int   `description:"Default number of buffers for reading a response." json:"proxyBuffersNumber,omitempty" toml:"proxyBuffersNumber,omitempty" yaml:"proxyBuffersNumber,omitempty" export:"true"`
+	ProxyRequestBuffering    bool     `description:"Defines whether to enable request buffering." json:"proxyRequestBuffering,omitempty" toml:"proxyRequestBuffering,omitempty" yaml:"proxyRequestBuffering,omitempty" export:"true"`
+	ClientBodyBufferSize     int64    `description:"Default buffer size for reading client request body." json:"clientBodyBufferSize,omitempty" toml:"clientBodyBufferSize,omitempty" yaml:"clientBodyBufferSize,omitempty" export:"true"`
+	ProxyBodySize            int64    `description:"Default maximum size of a client request body in bytes." json:"proxyBodySize,omitempty" toml:"proxyBodySize,omitempty" yaml:"proxyBodySize,omitempty" export:"true"`
+	ProxyBuffering           bool     `description:"Defines whether to enable response buffering." json:"proxyBuffering,omitempty" toml:"proxyBuffering,omitempty" yaml:"proxyBuffering,omitempty" export:"true"`
+	ProxyBufferSize          int64    `description:"Default buffer size for reading the response body." json:"proxyBufferSize,omitempty" toml:"proxyBufferSize,omitempty" yaml:"proxyBufferSize,omitempty" export:"true"`
+	ProxyBuffersNumber       int      `description:"Default number of buffers for reading a response." json:"proxyBuffersNumber,omitempty" toml:"proxyBuffersNumber,omitempty" yaml:"proxyBuffersNumber,omitempty" export:"true"`
+	ProxyConnectTimeout      int      `description:"Amount of time to wait until a connection to a server can be established. Timeout value is unitless and in seconds." json:"proxyConnectTimeout,omitempty" toml:"proxyConnectTimeout,omitempty" yaml:"proxyConnectTimeout,omitempty" export:"true"`
+	ProxyReadTimeout         int      `description:"Amount of time between two successive read operations. Timeout value is unitless and in seconds." json:"proxyReadTimeout,omitempty" toml:"proxyReadTimeout,omitempty" yaml:"proxyReadTimeout,omitempty" export:"true"`
+	ProxySendTimeout         int      `description:"Amount of time between two successive write operations. Timeout value is unitless and in seconds." json:"proxySendTimeout,omitempty" toml:"proxySendTimeout,omitempty" yaml:"proxySendTimeout,omitempty" export:"true"`
+	ProxyNextUpstream        string   `description:"Defines in which cases a request should be retried." json:"proxyNextUpstream,omitempty" toml:"proxyNextUpstream,omitempty" yaml:"proxyNextUpstream,omitempty" export:"true"`
+	ProxyNextUpstreamTries   int      `description:"Limits the number of possible tries if the backend server does not reply." json:"proxyNextUpstreamTries,omitempty" toml:"proxyNextUpstreamTries,omitempty" yaml:"proxyNextUpstreamTries,omitempty" export:"true"`
+	ProxyNextUpstreamTimeout int      `description:"Limits the total elapsed time to retry the request if the backend server does not reply. Timeout value is unitless and in seconds." json:"proxyNextUpstreamTimeout,omitempty" toml:"proxyNextUpstreamTimeout,omitempty" yaml:"proxyNextUpstreamTimeout,omitempty" export:"true"`
+	CustomHTTPErrors         []string `description:"Defines which status should result in calling the default backend to return an error page." json:"customHTTPErrors,omitempty" toml:"customHTTPErrors,omitempty" yaml:"customHTTPErrors,omitempty" export:"true"`
+
+	AllowCrossNamespaceResources bool     `description:"Allow Ingress to reference resources (e.g. ConfigMaps, Secrets) in different namespaces." json:"allowCrossNamespaceResources,omitempty" toml:"allowCrossNamespaceResources,omitempty" yaml:"allowCrossNamespaceResources,omitempty" export:"true"`
+	GlobalAllowedResponseHeaders []string `description:"List of allowed response headers inside the custom headers annotations." json:"globalAllowedResponseHeaders,omitempty" toml:"globalAllowedResponseHeaders,omitempty" yaml:"globalAllowedResponseHeaders,omitempty" export:"true"`
 
 	// NonTLSEntryPoints contains the names of entrypoints that are configured without TLS.
 	NonTLSEntryPoints []string `description:"EntryPoint(s) (separated by comma) used for HTTP requests."  json:"nonTlsEntryPoints,omitempty" toml:"nonTlsEntryPoints,omitempty" yaml:"nonTlsEntryPoints,omitempty" export:"true"`
@@ -111,6 +131,7 @@ type Provider struct {
 	// TLSEntryPoints contains the names of entrypoints that are configured with TLS.
 	TLSEntryPoints []string `description:"EntryPoint(s) (separated by comma) used for HTTPS requests."  json:"tlsEntryPoints,omitempty" toml:"tlsEntryPoints,omitempty" yaml:"tlsEntryPoints,omitempty" export:"true"`
 
+	allowedHeaders                 []string
 	defaultBackendServiceNamespace string
 	defaultBackendServiceName      string
 
@@ -122,22 +143,20 @@ func (p *Provider) SetDefaults() {
 	p.IngressClass = defaultAnnotationValue
 	p.ControllerClass = defaultControllerName
 	p.ProxyConnectTimeout = defaultProxyConnectTimeout
+	p.ProxyReadTimeout = defaultProxyReadTimeout
+	p.ProxySendTimeout = defaultProxySendTimeout
 	p.ClientBodyBufferSize = defaultClientBodyBufferSize
 	p.ProxyBodySize = defaultProxyBodySize
 	p.ProxyBufferSize = defaultProxyBufferSize
 	p.ProxyBuffersNumber = defaultProxyBuffersNumber
+	p.ProxyNextUpstream = defaultProxyNextUpstream
+	p.ProxyNextUpstreamTries = defaultProxyNextUpstreamTries
 }
 
 // Init the provider.
 func (p *Provider) Init() error {
-	// Validates and parses the default backend configuration.
-	if p.DefaultBackendService != "" {
-		parts := strings.Split(p.DefaultBackendService, "/")
-		if len(parts) != 2 {
-			return fmt.Errorf("invalid default backend service format: %s, expected 'namespace/name'", p.DefaultBackendService)
-		}
-		p.defaultBackendServiceNamespace = parts[0]
-		p.defaultBackendServiceName = parts[1]
+	if err := p.validateConfiguration(); err != nil {
+		return fmt.Errorf("validating kubernetesingressnginx provider configuration: %w", err)
 	}
 
 	// Initializes Kubernetes client.
@@ -219,6 +238,31 @@ func (p *Provider) Provide(configurationChan chan<- dynamic.Message, pool *safe.
 		}
 	})
 
+	return nil
+}
+
+func (p *Provider) validateConfiguration() error {
+	// Validates and parses the default backend configuration.
+	if p.DefaultBackendService != "" {
+		parts := strings.Split(p.DefaultBackendService, "/")
+		if len(parts) != 2 {
+			return fmt.Errorf("invalid default backend service format: %s, expected 'namespace/name'", p.DefaultBackendService)
+		}
+		p.defaultBackendServiceNamespace = parts[0]
+		p.defaultBackendServiceName = parts[1]
+	}
+
+	var allowedHeaders []string
+	for _, header := range p.GlobalAllowedResponseHeaders {
+		if !headerRegexp.MatchString(header) {
+			log.Warn().Msgf("GlobalAllowedResponseHeaders header value %q is invalid and will be ignored. Only alphanumeric characters, dashes and underscores are allowed.", header)
+			continue
+		}
+
+		allowedHeaders = append(allowedHeaders, header)
+	}
+
+	p.allowedHeaders = allowedHeaders
 	return nil
 }
 
@@ -380,7 +424,7 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 				Service:    defaultBackendName,
 			}
 
-			if err := p.applyMiddlewares(ingress.Namespace, defaultBackendName, "", "", hosts, ingressConfig, hasTLS, rt, conf); err != nil {
+			if err := p.applyMiddlewares(ingress.Namespace, ingress.Name, defaultBackendName, "", "", ingress.Spec.DefaultBackend, hosts, ingressConfig, hasTLS, rt, conf); err != nil {
 				logger.Error().Err(err).Msg("Error applying middlewares")
 			}
 
@@ -399,7 +443,7 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 				rtTLS.TLS.Options = clientAuthTLSOptionName
 			}
 
-			if err := p.applyMiddlewares(ingress.Namespace, defaultBackendTLSName, "", "", hosts, ingressConfig, false, rtTLS, conf); err != nil {
+			if err := p.applyMiddlewares(ingress.Namespace, ingress.Name, defaultBackendTLSName, "", "", ingress.Spec.DefaultBackend, hosts, ingressConfig, false, rtTLS, conf); err != nil {
 				logger.Error().Err(err).Msg("Error applying middlewares")
 			}
 
@@ -477,7 +521,7 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 					Service:    key,
 				}
 
-				if err := p.applyMiddlewares(ingress.Namespace, key, "", "", hosts, ingressConfig, hasTLS, rt, conf); err != nil {
+				if err := p.applyMiddlewares(ingress.Namespace, ingress.Name, key, "", "", ingress.Spec.DefaultBackend, hosts, ingressConfig, hasTLS, rt, conf); err != nil {
 					logger.Error().Err(err).Msg("Error applying middlewares")
 				}
 
@@ -495,7 +539,7 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 					rtTLS.TLS.Options = clientAuthTLSOptionName
 				}
 
-				if err := p.applyMiddlewares(ingress.Namespace, key+"-tls", "", "", hosts, ingressConfig, false, rtTLS, conf); err != nil {
+				if err := p.applyMiddlewares(ingress.Namespace, ingress.Name, key+"-tls", "", "", ingress.Spec.DefaultBackend, hosts, ingressConfig, false, rtTLS, conf); err != nil {
 					logger.Error().Err(err).Msg("Error applying middlewares")
 				}
 
@@ -568,7 +612,7 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 					conf.HTTP.ServersTransports[namedServersTransport.Name] = namedServersTransport.ServersTransport
 				}
 
-				if err := p.applyMiddlewares(ingress.Namespace, routerKey, pa.Path, rule.Host, hosts, ingressConfig, hasTLS, rt, conf); err != nil {
+				if err := p.applyMiddlewares(ingress.Namespace, ingress.Name, routerKey, pa.Path, rule.Host, &pa.Backend, hosts, ingressConfig, hasTLS, rt, conf); err != nil {
 					logger.Error().Err(err).Msg("Error applying middlewares")
 				}
 			}
@@ -588,11 +632,15 @@ func (p *Provider) loadConfiguration(ctx context.Context) *dynamic.Configuration
 
 func (p *Provider) buildServersTransport(namespace, name string, cfg ingressConfig) (*namedServersTransport, error) {
 	proxyConnectTimeout := ptr.Deref(cfg.ProxyConnectTimeout, p.ProxyConnectTimeout)
+	proxyReadTimeout := ptr.Deref(cfg.ProxyReadTimeout, p.ProxyReadTimeout)
+	proxySendTimeout := ptr.Deref(cfg.ProxySendTimeout, p.ProxySendTimeout)
 	nst := &namedServersTransport{
 		Name: provider.Normalize(namespace + "-" + name),
 		ServersTransport: &dynamic.ServersTransport{
 			ForwardingTimeouts: &dynamic.ForwardingTimeouts{
-				DialTimeout: ptypes.Duration(time.Duration(proxyConnectTimeout) * time.Second),
+				DialTimeout:  ptypes.Duration(time.Duration(proxyConnectTimeout) * time.Second),
+				ReadTimeout:  ptypes.Duration(time.Duration(proxyReadTimeout) * time.Second),
+				WriteTimeout: ptypes.Duration(time.Duration(proxySendTimeout) * time.Second),
 			},
 		},
 	}
@@ -610,7 +658,12 @@ func (p *Provider) buildServersTransport(namespace, name string, cfg ingressConf
 			return nil, fmt.Errorf("malformed proxy SSL secret: %s, expected namespace/name", sslSecret)
 		}
 
-		blocks, err := p.certificateBlocks(parts[0], parts[1])
+		secretNamespace, secretName := parts[0], parts[1]
+		if !p.AllowCrossNamespaceResources && secretNamespace != namespace {
+			return nil, fmt.Errorf("cross-namespace proxy ssl secret is not allowed: secret %s/%s is not from ingress namespace %q", secretName, secretNamespace, namespace)
+		}
+
+		blocks, err := p.certificateBlocks(secretNamespace, secretName)
 		if err != nil {
 			return nil, fmt.Errorf("getting certificate blocks: %w", err)
 		}
@@ -679,6 +732,18 @@ func (p *Provider) buildPassthroughService(namespace string, backend netv1.Ingre
 	return &dynamic.TCPService{LoadBalancer: lb}, nil
 }
 
+func getPort(service *corev1.Service, backend netv1.IngressBackend) (string, corev1.ServicePort, bool) {
+	for _, p := range service.Spec.Ports {
+		// A port with number 0 or an empty name is not allowed, this case is there for the default backend service.
+		if (backend.Service.Port.Number == 0 && backend.Service.Port.Name == "") ||
+			(backend.Service.Port.Number == p.Port || (backend.Service.Port.Name == p.Name && len(p.Name) > 0)) {
+			return p.Name, p, true
+		}
+	}
+
+	return "", corev1.ServicePort{}, false
+}
+
 func (p *Provider) getBackendAddresses(namespace string, backend netv1.IngressBackend, cfg ingressConfig) ([]backendAddress, error) {
 	service, err := p.k8sClient.GetService(namespace, backend.Service.Name)
 	if err != nil {
@@ -689,19 +754,7 @@ func (p *Provider) getBackendAddresses(namespace string, backend netv1.IngressBa
 		return nil, errors.New("externalName services not allowed")
 	}
 
-	var portName string
-	var portSpec corev1.ServicePort
-	var match bool
-	for _, p := range service.Spec.Ports {
-		// A port with number 0 or an empty name is not allowed, this case is there for the default backend service.
-		if (backend.Service.Port.Number == 0 && backend.Service.Port.Name == "") ||
-			(backend.Service.Port.Number == p.Port || (backend.Service.Port.Name == p.Name && len(p.Name) > 0)) {
-			portName = p.Name
-			portSpec = p
-			match = true
-			break
-		}
-	}
+	portName, portSpec, match := getPort(service, backend)
 	if !match {
 		return nil, errors.New("service port not found")
 	}
@@ -715,7 +768,40 @@ func (p *Provider) getBackendAddresses(namespace string, backend netv1.IngressBa
 		return []backendAddress{{Address: net.JoinHostPort(service.Spec.ClusterIP, strconv.Itoa(int(portSpec.Port)))}}, nil
 	}
 
-	endpointSlices, err := p.k8sClient.GetEndpointSlicesForService(namespace, backend.Service.Name)
+	addresses, err := p.getBackendAddressesFromEndpointSlices(namespace, backend.Service.Name, portName)
+	if err != nil {
+		return nil, fmt.Errorf("getting backend addresses: %w", err)
+	}
+
+	defaultBackend := ptr.Deref(cfg.DefaultBackend, "")
+	if defaultBackend == "" || defaultBackend == backend.Service.Name || len(addresses) > 0 {
+		return addresses, nil
+	}
+
+	serviceDefaultBackend, err := p.k8sClient.GetService(namespace, defaultBackend)
+	if err != nil {
+		return nil, fmt.Errorf("getting service: %w", err)
+	}
+
+	if p.DisableSvcExternalName && serviceDefaultBackend.Spec.Type == corev1.ServiceTypeExternalName {
+		return nil, errors.New("externalName services not allowed")
+	}
+
+	portName, _, match = getPort(serviceDefaultBackend, netv1.IngressBackend{Service: &netv1.IngressServiceBackend{Name: defaultBackend}})
+	if !match {
+		return nil, errors.New("service port not found")
+	}
+
+	// If the default backend has no endpoints,
+	// and if there is no default-backend-service configured,
+	// the fallback with Ingress NGINX is to serve a 404,
+	// but here, we will later build an empty server load-balancer which serves a 503.
+	// TODO: make the built service return a 404.
+	return p.getBackendAddressesFromEndpointSlices(namespace, defaultBackend, portName)
+}
+
+func (p *Provider) getBackendAddressesFromEndpointSlices(namespace, name, portName string) ([]backendAddress, error) {
+	endpointSlices, err := p.k8sClient.GetEndpointSlicesForService(namespace, name)
 	if err != nil {
 		return nil, fmt.Errorf("getting endpointslices: %w", err)
 	}
@@ -880,7 +966,12 @@ func (p *Provider) loadCertificates(ctx context.Context, ingress *netv1.Ingress,
 	return nil
 }
 
-func (p *Provider) applyMiddlewares(namespace, routerKey, rulePath, ruleHost string, hosts map[string]bool, ingressConfig ingressConfig, hasTLS bool, rt *dynamic.Router, conf *dynamic.Configuration) error {
+func (p *Provider) applyMiddlewares(namespace, ingressName, routerKey, rulePath, ruleHost string, backend *netv1.IngressBackend, hosts map[string]bool, ingressConfig ingressConfig, hasTLS bool, rt *dynamic.Router, conf *dynamic.Configuration) error {
+	err := p.applyCustomHTTPErrors(namespace, ingressName, routerKey, backend, ingressConfig, rt, conf)
+	if err != nil {
+		return err
+	}
+
 	applyAppRootConfiguration(routerKey, ingressConfig, rt, conf)
 	applyFromToWwwRedirect(hosts, ruleHost, routerKey, ingressConfig, rt, conf)
 	applyRedirect(routerKey, ingressConfig, rt, conf)
@@ -909,10 +1000,75 @@ func (p *Provider) applyMiddlewares(namespace, routerKey, rulePath, ruleHost str
 
 	applyUpstreamVhost(routerKey, ingressConfig, rt, conf)
 
+	if err := p.applyAuthTLSPassCertificateToUpstream(namespace, routerKey, ingressConfig, rt, conf); err != nil {
+		return fmt.Errorf("applying auth tls pass certificate to upstream: %w", err)
+	}
+
 	if err := p.applyCustomHeaders(routerKey, ingressConfig, rt, conf); err != nil {
 		return fmt.Errorf("applying custom headers: %w", err)
 	}
 
+	p.applyRetry(routerKey, ingressConfig, rt, conf)
+
+	return nil
+}
+
+func (p *Provider) applyCustomHTTPErrors(namespace, ingressName, routerName string, targetedService *netv1.IngressBackend, config ingressConfig, rt *dynamic.Router, conf *dynamic.Configuration) error {
+	customHTTPErrors := ptr.Deref(config.CustomHTTPErrors, p.CustomHTTPErrors)
+	if len(customHTTPErrors) == 0 {
+		return nil
+	}
+
+	if targetedService == nil {
+		return errors.New("targeted ingress backend is nil")
+	}
+
+	if targetedService.Service == nil {
+		return errors.New("targeted ingress backend has no service")
+	}
+
+	// TODO: here we always use the default backend as a fallback, but it is not guaranteed to be created,
+	// so we should check if it exists before and create a dummy service if not, which is too complicated to check without pre computed model.
+	serviceName := defaultBackendName
+	if defaultBackend := ptr.Deref(config.DefaultBackend, ""); defaultBackend != "" {
+		backend := netv1.IngressBackend{Service: &netv1.IngressServiceBackend{Name: defaultBackend}}
+		service, err := p.buildService(namespace, backend, config)
+		if err != nil {
+			return err
+		}
+
+		serviceName = fmt.Sprintf("default-backend-%s", routerName)
+		conf.HTTP.Services[serviceName] = service
+	}
+
+	k8sServiceName := targetedService.Service.Name
+	serviceK8s, err := p.k8sClient.GetService(namespace, k8sServiceName)
+	if err != nil {
+		return fmt.Errorf("getting service: %w", err)
+	}
+
+	_, portSpec, ok := getPort(serviceK8s, *targetedService)
+	if !ok {
+		return fmt.Errorf("port not found for service %s", k8sServiceName)
+	}
+
+	customErrorMiddlewareName := routerName + "-custom-http-errors"
+	headers := http.Header(map[string][]string{
+		"X-Namespaces":   {namespace},
+		"X-Ingress-Name": {ingressName},
+		"X-Service-Name": {k8sServiceName},
+		"X-Service-Port": {strconv.Itoa(int(portSpec.Port))},
+	})
+
+	conf.HTTP.Middlewares[customErrorMiddlewareName] = &dynamic.Middleware{
+		Errors: &dynamic.ErrorPage{
+			Status:       customHTTPErrors,
+			Service:      serviceName,
+			NginxHeaders: &headers,
+		},
+	}
+
+	rt.Middlewares = append(rt.Middlewares, customErrorMiddlewareName)
 	return nil
 }
 
@@ -969,6 +1125,9 @@ func (p *Provider) applyCustomHeaders(routerName string, ingressConfig ingressCo
 		return fmt.Errorf("invalid custom headers config map %q", customHeaders)
 	}
 
+	// We purposely allow cross-namespace for custom headers config maps,
+	// because Ingress-Nginx does not have this limitation,
+	// even if allowCrossNamespaceResources is supposed to have the same behavior for all cross-namespace resources.
 	configMapNamespace := customHeadersParts[0]
 	configMapName := customHeadersParts[1]
 
@@ -977,10 +1136,23 @@ func (p *Provider) applyCustomHeaders(routerName string, ingressConfig ingressCo
 		return fmt.Errorf("getting configMap %s: %w", customHeaders, err)
 	}
 
+	customResponseHeaders := make(map[string]string)
+	for key, value := range configMap.Data {
+		if !slices.Contains(p.allowedHeaders, key) {
+			return fmt.Errorf("header %q is not allowed in the GlobalAllowedResponseHeaders list", key)
+		}
+
+		if !valueRegexp.MatchString(value) {
+			return fmt.Errorf("invalid value for custom header %q: %q", key, value)
+		}
+
+		customResponseHeaders[key] = value
+	}
+
 	customHeadersMiddlewareName := routerName + "-custom-headers"
 	conf.HTTP.Middlewares[customHeadersMiddlewareName] = &dynamic.Middleware{
 		Headers: &dynamic.Headers{
-			CustomResponseHeaders: configMap.Data,
+			CustomResponseHeaders: customResponseHeaders,
 		},
 	}
 	rt.Middlewares = append(rt.Middlewares, customHeadersMiddlewareName)
@@ -989,16 +1161,25 @@ func (p *Provider) applyCustomHeaders(routerName string, ingressConfig ingressCo
 }
 
 func applyRewriteTargetConfiguration(rulePath, routerName string, ingressConfig ingressConfig, rt *dynamic.Router, conf *dynamic.Configuration) {
-	if ingressConfig.RewriteTarget == nil || !ptr.Deref(ingressConfig.UseRegex, false) {
+	if ingressConfig.RewriteTarget == nil {
 		return
 	}
 
 	rewriteTargetMiddlewareName := routerName + "-rewrite-target"
-	conf.HTTP.Middlewares[rewriteTargetMiddlewareName] = &dynamic.Middleware{
-		ReplacePathRegex: &dynamic.ReplacePathRegex{
-			Regex:       rulePath,
-			Replacement: *ingressConfig.RewriteTarget,
-		},
+
+	if ptr.Deref(ingressConfig.UseRegex, false) {
+		conf.HTTP.Middlewares[rewriteTargetMiddlewareName] = &dynamic.Middleware{
+			ReplacePathRegex: &dynamic.ReplacePathRegex{
+				Regex:       rulePath,
+				Replacement: *ingressConfig.RewriteTarget,
+			},
+		}
+	} else {
+		conf.HTTP.Middlewares[rewriteTargetMiddlewareName] = &dynamic.Middleware{
+			ReplacePath: &dynamic.ReplacePath{
+				Path: *ingressConfig.RewriteTarget,
+			},
+		}
 	}
 
 	rt.Middlewares = append(rt.Middlewares, rewriteTargetMiddlewareName)
@@ -1045,9 +1226,9 @@ func applyFromToWwwRedirect(hosts map[string]bool, ruleHost, routerName string, 
 	fromToWwwRedirectMiddlewareName := routerName + "-from-to-www-redirect"
 	conf.HTTP.Middlewares[fromToWwwRedirectMiddlewareName] = &dynamic.Middleware{
 		RedirectRegex: &dynamic.RedirectRegex{
-			Regex:       `(https?)://[^/]+:([0-9]+)/(.*)`,
-			Replacement: fmt.Sprintf("$1://%s:$2/$3", ruleHost),
-			Permanent:   true,
+			Regex:       `(https?)://[^/:]+(:[0-9]+)?/(.*)`,
+			Replacement: fmt.Sprintf("$1://%s$2/$3", ruleHost),
+			StatusCode:  ptr.To(http.StatusPermanentRedirect),
 		},
 	}
 
@@ -1088,6 +1269,10 @@ func (p *Provider) applyBasicAuthConfiguration(namespace, routerName string, ing
 	if len(authSecretParts) == 2 {
 		secretNamespace = authSecretParts[0]
 		secretName = authSecretParts[1]
+	}
+
+	if !p.AllowCrossNamespaceResources && secretNamespace != namespace {
+		return fmt.Errorf("cross-namespace auth secret is not allowed: secret %s/%s is not from ingress namespace %q", secretName, secretNamespace, namespace)
 	}
 
 	secret, err := p.k8sClient.GetSecret(secretNamespace, secretName)
@@ -1388,6 +1573,106 @@ func applyForwardAuthConfiguration(routerName string, ingressConfig ingressConfi
 	return nil
 }
 
+func (p *Provider) applyAuthTLSPassCertificateToUpstream(ingressNamespace string, routerName string, ingressConfig ingressConfig, rt *dynamic.Router, conf *dynamic.Configuration) error {
+	if !ptr.Deref(ingressConfig.AuthTLSPassCertificateToUpstream, false) {
+		return nil
+	}
+	if ingressConfig.AuthTLSSecret == nil {
+		return errors.New("auth-tls-pass-certificate-to-upstream requires auth-tls-secret to be configured")
+	}
+
+	verifyClient := clientAuthTypeFromString(ingressConfig.AuthTLSVerifyClient)
+
+	var caFiles []types.FileOrContent
+	if verifyClient == tls.RequestClientCert {
+		blocks, err := p.loadCertBlock(ingressNamespace, ingressConfig)
+		if err != nil {
+			return fmt.Errorf("reading client certificate: %w", err)
+		}
+		caFiles = []types.FileOrContent{*blocks.CA}
+	}
+
+	passCertificateToUpstreamMiddlewareName := routerName + "-pass-certificate-to-upstream"
+	conf.HTTP.Middlewares[passCertificateToUpstreamMiddlewareName] = &dynamic.Middleware{
+		AuthTLSPassCertificateToUpstream: &dynamic.AuthTLSPassCertificateToUpstream{
+			ClientAuthType: verifyClient,
+			CAFiles:        caFiles,
+		},
+	}
+	rt.Middlewares = append(rt.Middlewares, passCertificateToUpstreamMiddlewareName)
+
+	return nil
+}
+
+func (p *Provider) applyRetry(routerName string, ingressConfig ingressConfig, rt *dynamic.Router, conf *dynamic.Configuration) {
+	attempts := ptr.Deref(ingressConfig.ProxyNextUpstreamTries, p.ProxyNextUpstreamTries)
+	// Safeguard to deactivate retry when the value is less than 0.
+	if attempts < 0 {
+		return
+	}
+
+	proxyNextUpstream := ptr.Deref(ingressConfig.ProxyNextUpstream, p.ProxyNextUpstream)
+	if proxyNextUpstream == "" {
+		return
+	}
+
+	retryConditions := strings.Fields(proxyNextUpstream)
+	// "off" disables the retry entirely.
+	if slices.Contains(retryConditions, "off") {
+		return
+	}
+
+	// proxy-next-upstream-tries = 0 on NGINX means unlimited tries, which maps to try every available server.
+	// To avoid infinite retries, put the number of servers as the attempts limit.
+	if attempts == 0 {
+		svc, ok := conf.HTTP.Services[rt.Service]
+		if !ok || svc.LoadBalancer == nil {
+			return
+		}
+		serverCount := len(svc.LoadBalancer.Servers)
+		attempts = serverCount
+	}
+
+	retryConfig := &dynamic.Retry{
+		Attempts: attempts,
+	}
+
+	// Disable network error retry if no error nor timeout present on the configuration.
+	hasError := slices.Contains(retryConditions, "error")
+	hasTimeout := slices.Contains(retryConditions, "timeout")
+	if !hasError && !hasTimeout {
+		retryConfig.DisableRetryOnNetworkError = true
+	}
+
+	// HTTP status codes condition.
+	var statusCodes []string
+	for _, statusCode := range retryConditions {
+		if code, ok := strings.CutPrefix(statusCode, "http_"); ok {
+			statusCodes = append(statusCodes, code)
+		}
+	}
+	if len(statusCodes) > 0 {
+		retryConfig.Status = statusCodes
+	}
+
+	// Non-idempotent configuration.
+	if slices.Contains(retryConditions, "non_idempotent") {
+		retryConfig.RetryNonIdempotentMethod = true
+	}
+
+	// Timeout configuration.
+	timeout := ptr.Deref(ingressConfig.ProxyNextUpstreamTimeout, p.ProxyNextUpstreamTimeout)
+	if timeout > 0 {
+		retryConfig.Timeout = ptypes.Duration(time.Duration(timeout) * time.Second)
+	}
+
+	retryMiddlewareName := routerName + "-retry"
+	conf.HTTP.Middlewares[retryMiddlewareName] = &dynamic.Middleware{
+		Retry: retryConfig,
+	}
+	rt.Middlewares = append(rt.Middlewares, retryMiddlewareName)
+}
+
 func basicAuthUsers(secret *corev1.Secret, authSecretType string) (dynamic.Users, error) {
 	var users dynamic.Users
 	if authSecretType == "auth-map" {
@@ -1504,10 +1789,10 @@ func throttleEvents(ctx context.Context, throttleDuration time.Duration, pool *s
 	return eventsChanBuffered
 }
 
-func (p *Provider) buildClientAuthTLSOption(ingressNamespace string, config ingressConfig) (tls.Options, error) {
+func (p *Provider) loadCertBlock(ingressNamespace string, config ingressConfig) (*certBlocks, error) {
 	secretParts := strings.SplitN(*config.AuthTLSSecret, "/", 2)
 	if len(secretParts) != 2 {
-		return tls.Options{}, errors.New("auth-tls-secret is not in a correct namespace/name format")
+		return nil, errors.New("auth-tls-secret is not in a correct namespace/name format")
 	}
 
 	// Expected format: namespace/name.
@@ -1515,42 +1800,58 @@ func (p *Provider) buildClientAuthTLSOption(ingressNamespace string, config ingr
 	secretName := secretParts[1]
 
 	if secretNamespace == "" {
-		return tls.Options{}, errors.New("auth-tls-secret has empty namespace")
+		return nil, errors.New("auth-tls-secret has empty namespace")
 	}
 	if secretName == "" {
-		return tls.Options{}, errors.New("auth-tls-secret has empty name")
+		return nil, errors.New("auth-tls-secret has empty name")
 	}
-	// Cross-namespace secrets are not supported.
-	if secretNamespace != ingressNamespace {
-		return tls.Options{}, fmt.Errorf("cross-namespace auth-tls-secret is not supported: secret namespace %q does not match ingress namespace %q", secretNamespace, ingressNamespace)
+
+	// Verify when cross-namespace secrets are not allowed.
+	if !p.AllowCrossNamespaceResources && secretNamespace != ingressNamespace {
+		return nil, fmt.Errorf("cross-namespace auth-tls-secret is not supported: secret namespace %q does not match ingress namespace %q", secretNamespace, ingressNamespace)
 	}
 
 	blocks, err := p.certificateBlocks(secretNamespace, secretName)
 	if err != nil {
-		return tls.Options{}, fmt.Errorf("reading client certificate: %w", err)
+		return nil, fmt.Errorf("reading client certificate: %w", err)
 	}
 
 	if blocks.CA == nil {
-		return tls.Options{}, errors.New("secret does not contain a CA certificate")
+		return nil, errors.New("secret does not contain a CA certificate")
 	}
 
-	// Default verifyClient value is "on" on ingress-nginx.
-	// on means that client certificate is required and must be signed by a trusted CA certificate.
-	clientAuthType := tls.RequireAndVerifyClientCert
-	if config.AuthTLSVerifyClient != nil {
-		switch *config.AuthTLSVerifyClient {
-		// off means that client certificate is not requested and no verification will be passed.
-		case "off":
-			clientAuthType = tls.NoClientCert
-		// optional means that the client certificate is requested, but not required.
-		// If the certificate is present, it needs to be verified.
-		case "optional":
-			clientAuthType = tls.VerifyClientCertIfGiven
-		// optional_no_ca means that the client certificate is requested, but does not require it to be signed by a trusted CA certificate.
-		case "optional_no_ca":
-			clientAuthType = tls.RequestClientCert
-		}
+	return blocks, nil
+}
+
+// clientAuthTypeFromString maps an ingress-nginx auth-tls-verify-client value to the corresponding ClientAuthType.
+// Default is "on" (RequireAndVerifyClientCert) when verifyClient is nil.
+func clientAuthTypeFromString(verifyClient *string) string {
+	if verifyClient == nil {
+		return tls.RequireAndVerifyClientCert
 	}
+	switch *verifyClient {
+	// off means that client certificate is not requested and no verification will be passed.
+	case "off":
+		return tls.NoClientCert
+	// optional means that the client certificate is requested, but not required.
+	// If the certificate is present, it needs to be verified.
+	case "optional":
+		return tls.VerifyClientCertIfGiven
+	// optional_no_ca means that the client certificate is requested, but does not require it to be signed by a trusted CA certificate.
+	case "optional_no_ca":
+		return tls.RequestClientCert
+	default:
+		return tls.RequireAndVerifyClientCert
+	}
+}
+
+func (p *Provider) buildClientAuthTLSOption(ingressNamespace string, config ingressConfig) (tls.Options, error) {
+	blocks, err := p.loadCertBlock(ingressNamespace, config)
+	if err != nil {
+		return tls.Options{}, fmt.Errorf("reading client certificate: %w", err)
+	}
+
+	clientAuthType := clientAuthTypeFromString(config.AuthTLSVerifyClient)
 
 	tlsOpt := tls.Options{}
 	tlsOpt.SetDefaults()
