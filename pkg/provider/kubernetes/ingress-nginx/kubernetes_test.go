@@ -70,12 +70,14 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-custom-headers-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Middlewares: []string{"default-ingress-with-custom-headers-rule-0-path-0-custom-headers", "default-ingress-with-custom-headers-rule-0-path-0-retry"},
 							Service:     "default-ingress-with-custom-headers-whoami-80",
 						},
 						"default-ingress-with-cross-namespace-headers-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`cross-namespace.localhost`) && Path(`/`)",
 							Middlewares: []string{"default-ingress-with-cross-namespace-headers-rule-0-path-0-custom-headers", "default-ingress-with-cross-namespace-headers-rule-0-path-0-retry"},
 							RuleSyntax:  "default",
@@ -185,6 +187,7 @@ func TestLoadIngresses(t *testing.T) {
 							Service:     "default-ingress-with-custom-headers-whoami-80",
 						},
 						"default-ingress-with-cross-namespace-headers-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`cross-namespace.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Middlewares: []string{"default-ingress-with-cross-namespace-headers-rule-0-path-0-custom-headers", "default-ingress-with-cross-namespace-headers-rule-0-path-0-retry"},
@@ -288,15 +291,17 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-custom-headers-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Middlewares: []string{"default-ingress-with-custom-headers-rule-0-path-0-custom-headers", "default-ingress-with-custom-headers-rule-0-path-0-retry"},
 							Service:     "default-ingress-with-custom-headers-whoami-80",
 						},
 						"default-ingress-with-cross-namespace-headers-rule-0-path-0": {
-							Rule:       "Host(`cross-namespace.localhost`) && Path(`/`)",
-							RuleSyntax: "default",
-							Service:    "default-ingress-with-cross-namespace-headers-whoami-80",
+							EntryPoints: []string{"web"},
+							Rule:        "Host(`cross-namespace.localhost`) && Path(`/`)",
+							RuleSyntax:  "default",
+							Service:     "default-ingress-with-cross-namespace-headers-whoami-80",
 						},
 					},
 					Middlewares: map[string]*dynamic.Middleware{
@@ -385,6 +390,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-no-annotation-rule-0-path-0": {
+							EntryPoints: []string{"websecure"},
 							Rule:        "Host(`whoami.localhost`) && PathPrefix(`/`)",
 							RuleSyntax:  "default",
 							TLS:         &dynamic.RouterTLSConfig{},
@@ -610,6 +616,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-ssl-redirect-rule-0-path-0": {
+							EntryPoints: []string{"websecure"},
 							Rule:        "Host(`sslredirect.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							TLS:         &dynamic.RouterTLSConfig{},
@@ -630,6 +637,7 @@ func TestLoadIngresses(t *testing.T) {
 							Service:     "default-ingress-without-ssl-redirect-whoami-80",
 						},
 						"default-ingress-without-ssl-redirect-rule-0-path-0": {
+							EntryPoints: []string{"websecure"},
 							Rule:        "Host(`withoutsslredirect.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							TLS:         &dynamic.RouterTLSConfig{},
@@ -637,6 +645,7 @@ func TestLoadIngresses(t *testing.T) {
 							Service:     "default-ingress-without-ssl-redirect-whoami-80",
 						},
 						"default-ingress-with-force-ssl-redirect-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`forcesslredirect.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Middlewares: []string{"default-ingress-with-force-ssl-redirect-rule-0-path-0-redirect-scheme", "default-ingress-with-force-ssl-redirect-rule-0-path-0-retry"},
@@ -1292,6 +1301,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-rewrite-target-no-regex-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`rewrite-target-no-regex.localhost`) && Path(`/original`)",
 							RuleSyntax:  "default",
 							Service:     "default-ingress-with-rewrite-target-no-regex-whoami-80",
@@ -1744,11 +1754,12 @@ func TestLoadIngresses(t *testing.T) {
 							Service:     "default-backend",
 						},
 						"default-backend-tls": {
-							Rule:       "PathPrefix(`/`)",
-							RuleSyntax: "default",
-							Priority:   math.MinInt32,
-							TLS:        &dynamic.RouterTLSConfig{},
-							Service:    "default-backend",
+							EntryPoints: []string{"websecure"},
+							Rule:        "PathPrefix(`/`)",
+							RuleSyntax:  "default",
+							Priority:    math.MinInt32,
+							TLS:         &dynamic.RouterTLSConfig{},
+							Service:     "default-backend",
 						},
 					},
 					Middlewares: map[string]*dynamic.Middleware{},
@@ -2858,6 +2869,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-proxy-timeout-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Middlewares: []string{"default-ingress-with-proxy-timeout-rule-0-path-0-retry"},
@@ -2915,6 +2927,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-proxy-timeout-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Middlewares: []string{"default-ingress-with-proxy-timeout-rule-0-path-0-retry"},
@@ -2973,6 +2986,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-auth-tls-secret-rule-0-path-0": {
+							EntryPoints: []string{"websecure"},
 							Rule:        "Host(`auth-tls-secret.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Middlewares: []string{"default-ingress-with-auth-tls-secret-rule-0-path-0-retry"},
@@ -3084,6 +3098,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-auth-tls-verify-client-rule-0-path-0": {
+							EntryPoints: []string{"websecure"},
 							Rule:        "Host(`auth-tls-verify-client.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Middlewares: []string{"default-ingress-with-auth-tls-verify-client-rule-0-path-0-retry"},
@@ -3194,6 +3209,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-custom-http-errors-and-default-backend-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Service:     "default-ingress-with-custom-http-errors-and-default-backend-whoami-80",
@@ -3284,23 +3300,26 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-custom-http-errors-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Service:     "default-ingress-with-custom-http-errors-whoami-80",
 							Middlewares: []string{"default-ingress-with-custom-http-errors-rule-0-path-0-custom-http-errors", "default-ingress-with-custom-http-errors-rule-0-path-0-retry"},
 						},
 						"default-backend": {
-							Rule:       "PathPrefix(`/`)",
-							RuleSyntax: "default",
-							Priority:   math.MinInt32,
-							Service:    "default-backend",
+							EntryPoints: []string{"web"},
+							Rule:        "PathPrefix(`/`)",
+							RuleSyntax:  "default",
+							Priority:    math.MinInt32,
+							Service:     "default-backend",
 						},
 						"default-backend-tls": {
-							Rule:       "PathPrefix(`/`)",
-							RuleSyntax: "default",
-							Priority:   math.MinInt32,
-							TLS:        &dynamic.RouterTLSConfig{},
-							Service:    "default-backend",
+							EntryPoints: []string{"websecure"},
+							Rule:        "PathPrefix(`/`)",
+							RuleSyntax:  "default",
+							Priority:    math.MinInt32,
+							TLS:         &dynamic.RouterTLSConfig{},
+							Service:     "default-backend",
 						},
 					},
 					Middlewares: map[string]*dynamic.Middleware{
@@ -3385,6 +3404,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-default-backend-annotation-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Service:     "default-ingress-with-default-backend-annotation-empty-80",
@@ -3939,6 +3959,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-auth-tls-pass-certificate-to-upstream-rule-0-path-0": {
+							EntryPoints: []string{"websecure"},
 							Rule:        "Host(`auth-tls-pass-certificate-to-upstream.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Middlewares: []string{"default-ingress-with-auth-tls-pass-certificate-to-upstream-rule-0-path-0-pass-certificate-to-upstream", "default-ingress-with-auth-tls-pass-certificate-to-upstream-rule-0-path-0-retry"},
@@ -4055,15 +4076,17 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-proxy-next-upstream-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Service:     "default-ingress-with-proxy-next-upstream-whoami-80",
 							Middlewares: []string{"default-ingress-with-proxy-next-upstream-rule-0-path-0-retry"},
 						},
 						"default-ingress-with-proxy-next-upstream-off-rule-0-path-0": {
-							Rule:       "Host(`whoami.localhost`) && Path(`/`)",
-							RuleSyntax: "default",
-							Service:    "default-ingress-with-proxy-next-upstream-off-whoami-80",
+							EntryPoints: []string{"web"},
+							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
+							RuleSyntax:  "default",
+							Service:     "default-ingress-with-proxy-next-upstream-off-whoami-80",
 						},
 					},
 					Middlewares: map[string]*dynamic.Middleware{
@@ -4140,12 +4163,14 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-proxy-next-upstream-tries-unlimited-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Service:     "default-ingress-with-proxy-next-upstream-tries-unlimited-whoami-80",
 							Middlewares: []string{"default-ingress-with-proxy-next-upstream-tries-unlimited-rule-0-path-0-retry"},
 						},
 						"default-ingress-with-proxy-next-upstream-tries-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Service:     "default-ingress-with-proxy-next-upstream-tries-whoami-80",
@@ -4229,6 +4254,7 @@ func TestLoadIngresses(t *testing.T) {
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-ingress-with-proxy-next-upstream-timeout-rule-0-path-0": {
+							EntryPoints: []string{"web"},
 							Rule:        "Host(`whoami.localhost`) && Path(`/`)",
 							RuleSyntax:  "default",
 							Service:     "default-ingress-with-proxy-next-upstream-timeout-whoami-80",
@@ -4295,6 +4321,7 @@ func TestLoadIngresses(t *testing.T) {
 				defaultBackendServiceName:      test.defaultBackendServiceName,
 				defaultBackendServiceNamespace: test.defaultBackendServiceNamespace,
 				NonTLSEntryPoints:              []string{"web"},
+				TLSEntryPoints:                 []string{"websecure"},
 				allowedHeaders:                 test.globalAllowedResponseHeaders,
 				AllowCrossNamespaceResources:   test.allowCrossNamespaceResources,
 			}
@@ -4302,52 +4329,6 @@ func TestLoadIngresses(t *testing.T) {
 
 			conf := p.loadConfiguration(t.Context())
 			assert.Equal(t, test.expected, conf)
-		})
-	}
-}
-
-func TestHTTPEntryPoints(t *testing.T) {
-	testCases := []struct {
-		desc string
-		// Inputs
-		nonTLSEntryPoints []string
-		tlsEntryPoints    []string
-		// Outputs
-		expectedHTTP  []string
-		expectedHTTPS []string
-	}{
-		{
-			desc:              "HTTP and HTTPS entrypoints set",
-			nonTLSEntryPoints: []string{"web"},
-			tlsEntryPoints:    []string{"websecure"},
-			expectedHTTP:      []string{"web"},
-			expectedHTTPS:     []string{"websecure"},
-		},
-		{
-			desc:              "Multiple HTTP and HTTPS entrypoints",
-			nonTLSEntryPoints: []string{"web", "http"},
-			tlsEntryPoints:    []string{"websecure", "tls"},
-			expectedHTTP:      []string{"web", "http"},
-			expectedHTTPS:     []string{"websecure", "tls"},
-		},
-		{
-			desc:              "Empty entrypoints",
-			nonTLSEntryPoints: []string{},
-			tlsEntryPoints:    []string{},
-			expectedHTTP:      []string{},
-			expectedHTTPS:     []string{},
-		},
-	}
-
-	for _, test := range testCases {
-		t.Run(test.desc, func(t *testing.T) {
-			p := &Provider{
-				NonTLSEntryPoints: test.nonTLSEntryPoints,
-				TLSEntryPoints:    test.tlsEntryPoints,
-			}
-
-			assert.Equal(t, test.expectedHTTP, p.NonTLSEntryPoints, "NonTLSEntryPoints mismatch")
-			assert.Equal(t, test.expectedHTTPS, p.TLSEntryPoints, "TLSEntryPoints mismatch")
 		})
 	}
 }
